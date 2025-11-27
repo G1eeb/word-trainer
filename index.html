@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="ru">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Тренажер слов</title>
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <link rel="stylesheet" href="styles/style.css">
+</head>
+
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        // Компонент формы добавления слов
+        const WordForm = ({ onAddWord }) => {
+            const [original, setOriginal] = useState('');
+            const [translation, setTranslation] = useState('');
+
+            const handleSubmit = (e) => {
+                e.preventDefault();
+                if (original.trim() && translation.trim()) {
+                    onAddWord(original.trim(), translation.trim());
+                    setOriginal('');
+                    setTranslation('');
+                }
+            };
+
+            return (
+                <div className="word-form">
+                    <h3>Добавить слово</h3>
+                    <form onSubmit={handleSubmit}>
+                        <input
+                            type="text"
+                            value={original}
+                            onChange={(e) => setOriginal(e.target.value)}
+                            placeholder="Английское слово"
+                            required
+                        />
+                        <input
+                            type="text"
+                            value={translation}
+                            onChange={(e) => setTranslation(e.target.value)}
+                            placeholder="Перевод"
+                            required
+                        />
+                        <button type="submit">Добавить</button>
+                    </form>
+                </div>
+            );
+        };
+
+        // Компонент тренировки
+        const WordTrainer = ({ words, onUpdateStats }) => {
+            const [currentWord, setCurrentWord] = useState(null);
+            const [showTranslation, setShowTranslation] = useState(false);
+            const [stats, setStats] = useState({ shown: 0, learned: 0 });
+
+            const getRandomWord = () => {
+                if (words.length > 0) {
+                    const randomIndex = Math.floor(Math.random() * words.length);
+                    setCurrentWord(words[randomIndex]);
+                    setShowTranslation(false);
+                }
+            };
+
+            const handleShowTranslation = () => {
+                setShowTranslation(true);
+                setStats(prev => ({ ...prev, shown: prev.shown + 1 }));
+            };
+
+            const handleLearned = () => {
+                if (currentWord) {
+                    setStats(prev => ({ ...prev, learned: prev.learned + 1 }));
+                    onUpdateStats(currentWord.id, true);
+                    getRandomWord();
+                }
+            };
+
+            useEffect(() => {
+                getRandomWord();
+            }, [words]);
+
+            if (words.length === 0) {
+                return (
+                    <div className="word-trainer">
+                        <p>Добавьте слова для тренировки</p>
+                    </div>
+                );
+            }
+
+            return (
+                <div className="word-trainer">
+                    <div className="stats">
+                        <span>Переводов: {stats.shown}</span>
+                        <span>Выучено: {stats.learned}</span>
+                    </div>
+
+                    <div className="word-card">
+                        <div className="original-word">{currentWord?.original}</div>
+                        {showTranslation ? (
+                            <div className="translation">{currentWord?.translation}</div>
+                        ) : (
+                            <button onClick={handleShowTranslation}>
+                                Показать перевод
+                            </button>
+                        )}
+                    </div>
+
+                    <div>
+                        <button onClick={getRandomWord}>Следующее слово</button>
+                        {showTranslation && (
+                            <button onClick={handleLearned}>Выучил</button>
+                        )}
+                    </div>
+                </div>
+            );
+        };
+
+        // Компонент списка слов
+        const WordList = ({ words, onDeleteWord }) => {
+            return (
+                <div className="word-list">
+                    <h3>Словарь ({words.length})</h3>
+                    {words.length === 0 ? (
+                        <p>Нет слов</p>
+                    ) : (
+                        <div>
+                            {words.map(word => (
+                                <div key={word.id} className="word-item">
+                                    <span>
+                                        {word.original} - {word.translation}
+                                        {word.learned && ' ✓'}
+                                    </span>
+                                    <button
+                                        onClick={() => onDeleteWord(word.id)}
+                                        className="delete-btn"
+                                    >
+                                        Удалить
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            );
+        };
+
+        // Главный компонент
+        const App = () => {
+            const [words, setWords] = useState([]);
+
+            // Загрузка из localStorage
+            useEffect(() => {
+                const saved = localStorage.getItem('words');
+                if (saved) setWords(JSON.parse(saved));
+            }, []);
+
+            // Сохранение в localStorage
+            useEffect(() => {
+                localStorage.setItem('words', JSON.stringify(words));
+            }, [words]);
+
+            const handleAddWord = (original, translation) => {
+                const newWord = {
+                    id: Date.now(),
+                    original,
+                    translation,
+                    learned: false
+                };
+                setWords(prev => [...prev, newWord]);
+            };
+
+            const handleDeleteWord = (id) => {
+                setWords(prev => prev.filter(word => word.id !== id));
+            };
+
+            const handleUpdateStats = (id, learned) => {
+                setWords(prev => prev.map(word =>
+                    word.id === id ? { ...word, learned } : word
+                ));
+            };
+
+            return (
+                <div>
+                    <div className="app-header">
+                        <h1>Тренажер английских слов</h1>
+                    </div>
+
+                    <div className="container">
+                        <div className="left-panel">
+                            <WordForm onAddWord={handleAddWord} />
+                            <WordList words={words} onDeleteWord={handleDeleteWord} />
+                        </div>
+
+                        <div className="right-panel">
+                            <WordTrainer
+                                words={words}
+                                onUpdateStats={handleUpdateStats}
+                            />
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        // Запуск приложения
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+
+</html>
